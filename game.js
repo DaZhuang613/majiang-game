@@ -54,6 +54,8 @@ const modalTitle = document.getElementById("modal-title");
 const modalContent = document.getElementById("modal-content");
 const modalButtons = document.getElementById("modal-buttons");
 const setupOverlay = document.getElementById("setup-overlay");
+const rulesOverlay = document.getElementById("rules-overlay");
+const rulesCloseBtn = document.getElementById("rules-close-btn");
 
 // ==================== 初始化 ====================
 function init() {
@@ -80,6 +82,8 @@ function init() {
     document.getElementById("start-btn").addEventListener("click", onStartClick);
     submitBtn.addEventListener("click", onSubmit);
     newGameBtn.addEventListener("click", () => showSetupDialog());
+    document.getElementById("rules-btn").addEventListener("click", showRules);
+    rulesCloseBtn.addEventListener("click", hideRules);
 
     showSetupDialog();
 }
@@ -774,6 +778,14 @@ function formatDrawnZi() {
         }
     }
     return hasAny ? sb : "无";
+}
+
+function showRules() {
+    rulesOverlay.classList.remove("hidden");
+}
+
+function hideRules() {
+    rulesOverlay.classList.add("hidden");
 }
 
 // ==================== 弹窗系统 ====================

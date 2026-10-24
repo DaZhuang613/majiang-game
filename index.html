@@ -51,7 +51,90 @@
     <div id="btn-bar">
         <button id="submit-btn" disabled>提交消除</button>
         <button id="new-game-btn" style="display:none;">再玩一次</button>
-        <a href="rules.html" id="rules-btn">规则</a>
+        <button id="rules-btn">规则</button>
+    </div>
+</div>
+
+<!-- 规则弹窗 -->
+<div id="rules-overlay" class="hidden">
+    <div id="rules-box">
+        <h1>🀄 麻将消除游戏 - 玩法规则</h1>
+        <div id="rules-content">
+            <h2>一、游戏目标</h2>
+            <p>通过不断消除手牌获取奖励牌，尽可能多地累计发出牌数。<span class="rule-highlight">发出的牌数越多，分数越高。</span></p>
+
+            <h2>二、初始设置</h2>
+            <ol>
+                <li><strong>拆几张</strong>：输入任意正整数，作为初始手牌数量。</li>
+                <li><strong>幸运数字</strong>：选择 1-9 中的一个数字。摸到该数字的万、条、筒时即为幸运牌。</li>
+            </ol>
+
+            <h2>三、牌型说明</h2>
+            <ul>
+                <li><strong>数字牌</strong>：1-9 万、1-9 条、1-9 筒，共 27 种。</li>
+                <li><strong>字牌</strong>：东、南、西、北、中、白、发，共 7 种。</li>
+                <li>牌库无尽，每种牌出现的概率均等。</li>
+            </ul>
+
+            <h2>四、游戏区域</h2>
+            <h3>1. 第一排（幸运牌 / 字牌区）</h3>
+            <ul>
+                <li>摸到<strong>字牌</strong>时，先放到第一排。</li>
+                <li>摸到<strong>幸运牌</strong>时，先放到第一排。</li>
+                <li>普通数字牌直接放到下面三排。</li>
+                <li>所有牌摸完后，需要手动结算第一排：选中字牌/幸运牌，点击提交。</li>
+            </ul>
+            <h3>2. 下面三排（万 / 条 / 筒）</h3>
+            <ul>
+                <li>每排 9 个位置，对应数字 1-9。</li>
+                <li>相同的牌会叠放在一起，牌角显示张数。</li>
+                <li>点击牌可以选中，多次点击可选中多张。</li>
+            </ul>
+
+            <h2>五、消除规则及奖励</h2>
+            <p>每次消除时，优先选择<span class="rule-highlight">奖励牌数最多</span>的牌型。</p>
+            <table class="rule-table">
+                <tr><th>牌型</th><th>条件</th><th>消除张数</th><th>奖励牌数</th></tr>
+                <tr><td>一条龙</td><td>同花色 1-9 各一张</td><td>9 张</td><td>7 张</td></tr>
+                <tr><td>同数字 n 张（n ≥ 4）</td><td>同花色同数字，不能跨花色</td><td>n 张</td><td>n + 1 张</td></tr>
+                <tr><td>同数字 3 张</td><td>同花色同数字，不能跨花色</td><td>3 张</td><td>2 张</td></tr>
+                <tr><td>顺子</td><td>同花色连续 3 张</td><td>3 张</td><td>2 张</td></tr>
+                <tr><td>两张合 10</td><td>两张牌数字之和为 10（可跨花色）</td><td>2 张</td><td>1 张</td></tr>
+                <tr><td>三张合 10</td><td>三张牌数字之和为 10（无两张合10时）</td><td>3 张</td><td>1 张</td></tr>
+                <tr><td>字牌</td><td>摸到字牌即消除</td><td>1 张</td><td>1 张</td></tr>
+                <tr><td>幸运牌</td><td>结算时保留，不消除</td><td>0 张</td><td>1 张</td></tr>
+            </table>
+            <div class="rule-note">
+                <strong>注意：</strong>凑 5 张及以上不能跨花色；顺子、一条龙必须同花；和为 10 可跨花色；两张合 10 优先于三张合 10。
+            </div>
+
+            <h2>六、结算流程</h2>
+            <ol>
+                <li>摸牌阶段：字牌和幸运牌放到第一排，普通牌放到下面三排。</li>
+                <li>第一排结算：选中字牌/幸运牌，点击提交。字牌消除并奖励 1 张；幸运牌移到手牌区并奖励 1 张。</li>
+                <li>消除阶段：根据提示手动选牌并提交消除。</li>
+                <li>奖励阶段：消除成功后发放奖励牌，重复流程。</li>
+            </ol>
+
+            <h2>七、特殊规则</h2>
+            <ul>
+                <li><strong>手牌已空</strong>：消除后手牌全部清空，按初始设置重新发牌，幸运数字不变。</li>
+                <li><strong>游戏结束</strong>：手牌中没有可消除的牌型时，游戏结束，显示最终分数和出牌统计。</li>
+            </ul>
+
+            <h2>八、计分规则</h2>
+            <p><span class="rule-highlight">分数 = 累计发出的牌数</span></p>
+            <p>包括初始发牌、奖励牌、字牌奖励、幸运牌奖励等所有发出的牌。</p>
+
+            <h2>九、操作说明</h2>
+            <ul>
+                <li><strong>点击牌</strong>：选中 1 张，再次点击可叠加选中。</li>
+                <li><strong>提交消除</strong>：选中牌后点击提交，系统检查是否合法。</li>
+                <li><strong>第一排牌</strong>：结算模式下点击即可选中/取消选中。</li>
+                <li><strong>下载日志</strong>：游戏结束后可下载详细对局日志。</li>
+            </ul>
+        </div>
+        <button id="rules-close-btn">关闭</button>
     </div>
 </div>
 
