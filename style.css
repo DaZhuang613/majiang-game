@@ -334,6 +334,18 @@ body {
     background: #0d47a1;
 }
 
+#btn-bar #rules-btn {
+    padding: 10px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #43a047;
+    color: #fff;
+    text-decoration: none;
+}
+
 /* 弹窗 */
 #modal-overlay, #setup-overlay {
     position: fixed;
