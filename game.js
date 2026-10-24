@@ -26,7 +26,7 @@ let drawnCounts = Array.from({length: 3}, () => new Array(10).fill(0));
 let drawnZi = new Array(7).fill(0);
 
 // 交互状态
-let selectedKeys = new Set();
+let selectedCounts = {}; // { key: 选中张数 }
 let isManualMode = false;
 let currentCombos = [];
 let currentMaxReward = 0;
@@ -147,7 +147,7 @@ function resetGame() {
     topLucky = {};
     totalDrawn = 0;
     roundCount = 0;
-    selectedKeys.clear();
+    selectedCounts = {};
     isManualMode = false;
     currentCombos = [];
     bestCombos = [];
@@ -360,8 +360,8 @@ function refreshUI() {
     }
 
     // 清理无效选中
-    for (const key of Array.from(selectedKeys)) {
-        if (getCount(key) <= 0) selectedKeys.delete(key);
+    for (const key of Object.keys(selectedCounts)) {
+        if (getCount(key) <= 0) delete selectedCounts[key];
     }
     updateSelectionBorder();
 }
@@ -369,23 +369,38 @@ function refreshUI() {
 // ==================== 点击交互 ====================
 function onTileClicked(key) {
     if (!isManualMode) return;
-    if (getCount(key) <= 0) return;
+    const handCount = getCount(key);
+    if (handCount <= 0) return;
 
-    const tile = document.querySelector(`.tile[data-key="${key}"]`);
-    if (selectedKeys.has(key)) {
-        selectedKeys.delete(key);
-        tile.classList.remove("selected");
+    const current = selectedCounts[key] || 0;
+    if (current >= handCount) {
+        delete selectedCounts[key];
     } else {
-        selectedKeys.add(key);
-        tile.classList.add("selected");
+        selectedCounts[key] = current + 1;
     }
+    updateSelectionBorder();
 }
 
 function updateSelectionBorder() {
-    document.querySelectorAll(".tile").forEach(t => t.classList.remove("selected"));
-    for (const key of selectedKeys) {
+    document.querySelectorAll(".tile").forEach(t => {
+        t.classList.remove("selected");
+        const sb = t.querySelector(".select-badge");
+        if (sb) sb.remove();
+    });
+    for (const [key, count] of Object.entries(selectedCounts)) {
         const tile = document.querySelector(`.tile[data-key="${key}"]`);
-        if (tile) tile.classList.add("selected");
+        if (tile) {
+            tile.classList.add("selected");
+            if (count > 1) {
+                let sb = tile.querySelector(".select-badge");
+                if (!sb) {
+                    sb = document.createElement("div");
+                    sb.className = "select-badge";
+                    tile.appendChild(sb);
+                }
+                sb.textContent = "选x" + count;
+            }
+        }
     }
 }
 
@@ -526,7 +541,7 @@ function playRound() {
         }, 300);
     } else {
         isManualMode = true;
-        selectedKeys.clear();
+        selectedCounts = {};
         updateSelectionBorder();
         submitBtn.disabled = false;
         msgBarEl.textContent = "【手动选择】发现 " + bestCombos.length + " 种奖励 " + currentMaxReward + " 张的组合，请点击牌后提交";
@@ -551,7 +566,7 @@ function formatHandState() {
 }
 
 function onSubmit() {
-    if (!isManualMode || selectedKeys.size === 0) {
+    if (!isManualMode || Object.keys(selectedCounts).length === 0) {
         showModal("提示", "请先点击选择要消除的牌！", [{text: "确定", action: () => {}}]);
         return;
     }
@@ -576,11 +591,17 @@ function onSubmit() {
 }
 
 function matchesSelection(combo) {
-    if (selectedKeys.size !== combo.keys.length) return false;
+    const totalSelected = Object.values(selectedCounts).reduce((a, b) => a + b, 0);
+    if (totalSelected !== combo.keys.length) return false;
+
+    const comboNeed = {};
     for (let i = 0; i < combo.keys.length; i++) {
         const key = combo.keys[i];
-        if (!selectedKeys.has(key)) return false;
-        if (getCount(key) < combo.need[i]) return false;
+        comboNeed[key] = (comboNeed[key] || 0) + combo.need[i];
+    }
+
+    for (const [key, need] of Object.entries(comboNeed)) {
+        if ((selectedCounts[key] || 0) < need) return false;
     }
     return true;
 }
@@ -596,7 +617,7 @@ function executeElimination(combo) {
             if (counts[s][n] < 0) counts[s][n] = 0;
         }
     }
-    selectedKeys.clear();
+    selectedCounts = {};
     refreshUI();
 
     showModal("消除成功", "消除成功！\n" + combo.desc + "\n获得奖励 " + combo.reward + " 张牌！", [
