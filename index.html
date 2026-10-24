@@ -10,7 +10,8 @@
 <div id="game-container">
     <!-- 顶部信息 -->
     <div id="info-bar">
-        <div id="score">分数：0</div>
+        <span id="score">分数：0</span>
+        <span id="hand-count">手牌：0</span>
     </div>
 
     <!-- 日志区域 -->
@@ -96,7 +97,7 @@
             <table class="rule-table">
                 <tr><th>牌型</th><th>条件</th><th>消除张数</th><th>奖励牌数</th></tr>
                 <tr><td>一条龙</td><td>同花色 1-9 各一张</td><td>9 张</td><td>7 张</td></tr>
-                <tr><td>同数字 n 张（n ≥ 4）</td><td>同花色同数字，不能跨花色</td><td>n 张</td><td>n + 1 张</td></tr>
+                <tr><td>同数字 n 张（n ≥ 4）</td><td>同花色同数字，不能跨花色</td><td>n 张</td><td>n 张</td></tr>
                 <tr><td>同数字 3 张</td><td>同花色同数字，不能跨花色</td><td>3 张</td><td>2 张</td></tr>
                 <tr><td>顺子</td><td>同花色连续 3 张</td><td>3 张</td><td>2 张</td></tr>
                 <tr><td>两张合 10</td><td>两张牌数字之和为 10（可跨花色）</td><td>2 张</td><td>1 张</td></tr>

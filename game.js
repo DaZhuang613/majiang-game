@@ -42,6 +42,7 @@ let gameLog = [];
 
 // ==================== DOM 引用 ====================
 const scoreEl = document.getElementById("score");
+const handCountEl = document.getElementById("hand-count");
 const logContentEl = document.getElementById("log-content");
 const msgBarEl = document.getElementById("msg-bar");
 const comboHintEl = document.getElementById("combo-hint");
@@ -283,6 +284,14 @@ function settleTopRow() {
 function refreshUI() {
     scoreEl.textContent = "分数（累计发牌）：" + totalDrawn;
 
+    let handCount = 0;
+    for (let s = 0; s < 3; s++) {
+        for (let n = 1; n <= 9; n++) {
+            handCount += counts[s][n];
+        }
+    }
+    handCountEl.textContent = "手牌：" + handCount + " 张";
+
     // 下面3排
     for (let s = 0; s < 3; s++) {
         for (let n = 1; n <= 9; n++) {
@@ -434,14 +443,14 @@ function findAllCombos() {
         if (ok) list.push(new Combo(7, ks, [1,1,1,1,1,1,1,1,1], SUIT_NAMES[s] + "1-9一条龙，奖励7张"));
     }
 
-    // 同花色同数字：3张奖励2张，4张及以上n张奖励n+1张
+    // 同花色同数字：3张奖励2张，4张及以上n张奖励n张
     for (let s = 0; s < 3; s++) {
         for (let n = 1; n <= 9; n++) {
             const c = counts[s][n];
             const k = keyFor(s, n);
             if (c >= 3) list.push(new Combo(2, [k], [3], n + SUIT_NAMES[s] + " x3，奖励2张"));
             for (let need = 4; need <= c; need++) {
-                list.push(new Combo(need + 1, [k], [need], n + SUIT_NAMES[s] + " x" + need + "，奖励" + (need + 1) + "张"));
+                list.push(new Combo(need, [k], [need], n + SUIT_NAMES[s] + " x" + need + "，奖励" + need + "张"));
             }
         }
     }
@@ -642,7 +651,23 @@ function executeTopRowSettlement() {
     } else {
         isSettlingTopRow = false;
         submitBtn.disabled = true;
-        playRound();
+        checkHandEmptyAndContinue();
+    }
+}
+
+function checkHandEmptyAndContinue() {
+    let empty = true;
+    for (let s = 0; s < 3; s++) {
+        for (let n = 1; n <= 9; n++) {
+            if (counts[s][n] > 0) { empty = false; break; }
+        }
+    }
+    if (empty) {
+        showModal("提示", "手牌已空，按初始设置重新发牌！", [
+            { text: "确定", action: () => { startGame(); } }
+        ]);
+    } else {
+        setTimeout(() => playRound(), 200);
     }
 }
 
@@ -695,19 +720,7 @@ function executeElimination(combo) {
             // 第一排还有牌需要手动结算，不继续playRound
             return;
         }
-        let empty = true;
-        for (let s = 0; s < 3; s++) {
-            for (let n = 1; n <= 9; n++) {
-                if (counts[s][n] > 0) { empty = false; break; }
-            }
-        }
-        if (empty) {
-            showModal("提示", "手牌已空，按初始设置重新发牌！", [
-                { text: "确定", action: () => { startGame(); } }
-            ]);
-        } else {
-            setTimeout(() => playRound(), 200);
-        }
+        checkHandEmptyAndContinue();
     });
 }
 

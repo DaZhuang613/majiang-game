@@ -34,6 +34,13 @@ body {
     color: #c62828;
 }
 
+#hand-count {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1565c0;
+    margin-left: 16px;
+}
+
 /* 日志区域 */
 #log-panel {
     background: rgba(255,255,255,0.95);
