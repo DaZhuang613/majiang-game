@@ -430,14 +430,15 @@ function findAllCombos() {
         if (ok) list.push(new Combo(7, ks, [1,1,1,1,1,1,1,1,1], SUIT_NAMES[s] + "1-9一条龙，奖励7张"));
     }
 
-    // 奖励6/5/2：同花色同数字 5/4/3 张
+    // 同花色同数字：3张奖励2张，4张及以上n张奖励n+1张
     for (let s = 0; s < 3; s++) {
         for (let n = 1; n <= 9; n++) {
             const c = counts[s][n];
             const k = keyFor(s, n);
-            if (c >= 5) list.push(new Combo(6, [k], [5], n + SUIT_NAMES[s] + " x5，奖励6张"));
-            if (c >= 4) list.push(new Combo(5, [k], [4], n + SUIT_NAMES[s] + " x4，奖励5张"));
             if (c >= 3) list.push(new Combo(2, [k], [3], n + SUIT_NAMES[s] + " x3，奖励2张"));
+            for (let need = 4; need <= c; need++) {
+                list.push(new Combo(need + 1, [k], [need], n + SUIT_NAMES[s] + " x" + need + "，奖励" + (need + 1) + "张"));
+            }
         }
     }
 
@@ -730,9 +731,13 @@ function gameOver() {
     const fileFmt = "" + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + "_" + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
     const filename = fileFmt + "_" + totalDrawn + ".txt";
 
-    showModal("游戏结束",
-        "没有可消除的牌型了！\n您的最终分数（累计发牌）：" + totalDrawn + " 张",
-        [
+    const endMsg = "没有可消除的牌型了！\n您的最终分数（累计发牌）：" + totalDrawn + " 张\n\n" +
+        "万：" + formatDrawnSuit(0) + "\n" +
+        "条：" + formatDrawnSuit(1) + "\n" +
+        "筒：" + formatDrawnSuit(2) + "\n" +
+        "字：" + formatDrawnZi();
+
+    showModal("游戏结束", endMsg, [
             { text: "确定", action: () => { /* 只是关闭弹窗 */ } },
             { text: "下载日志", action: () => {
                     const a = document.createElement("a");
