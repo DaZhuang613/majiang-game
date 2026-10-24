@@ -443,14 +443,15 @@ function findAllCombos() {
         if (ok) list.push(new Combo(7, ks, [1,1,1,1,1,1,1,1,1], SUIT_NAMES[s] + "1-9一条龙，奖励7张"));
     }
 
-    // 同花色同数字：3张奖励2张，4张及以上n张奖励n张
+    // 同花色同数字：3张奖励2张，4张及以上n张奖励n张（封顶7张）
     for (let s = 0; s < 3; s++) {
         for (let n = 1; n <= 9; n++) {
             const c = counts[s][n];
             const k = keyFor(s, n);
             if (c >= 3) list.push(new Combo(2, [k], [3], n + SUIT_NAMES[s] + " x3，奖励2张"));
             for (let need = 4; need <= c; need++) {
-                list.push(new Combo(need, [k], [need], n + SUIT_NAMES[s] + " x" + need + "，奖励" + need + "张"));
+                const reward = Math.min(need, 7);
+                list.push(new Combo(reward, [k], [need], n + SUIT_NAMES[s] + " x" + need + "，奖励" + reward + "张"));
             }
         }
     }
@@ -593,7 +594,7 @@ function onSubmit() {
     if (!matched) {
         showModal("非法选择",
             "选择不合法！\n当前最高奖励级别为 " + currentMaxReward + " 张，\n您的选择不符合任何可用组合，请重新选择。",
-            [{text: "确定", action: () => {}}]
+            [{text: "确定", action: () => { selectedCounts = {}; updateSelectionBorder(); }}]
         );
         return;
     }
