@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>麻将消除游戏</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 顶部信息 -->
+        <div id="info-bar">
+            <div id="score">分数：0</div>
+        </div>
+
+        <!-- 日志区域 -->
+        <div id="log-panel">
+            <div id="log-title">操作日志</div>
+            <div id="log-content"></div>
+        </div>
+
+        <!-- 消息栏 -->
+        <div id="msg-bar">请选择拆几张和幸运数字开始游戏</div>
+
+        <!-- 第1排：幸运牌/字牌 -->
+        <div id="top-row-section">
+            <div id="top-row-title">幸运牌 / 字牌（先放这里，结算后字牌消除，幸运牌下移）</div>
+            <div id="top-row"></div>
+        </div>
+
+        <!-- 下面3排：万、条、筒 -->
+        <div id="grid-section">
+            <div class="suit-row" data-suit="0">
+                <div class="suit-label">万</div>
+                <div class="tiles-row" id="row-0"></div>
+            </div>
+            <div class="suit-row" data-suit="1">
+                <div class="suit-label">条</div>
+                <div class="tiles-row" id="row-1"></div>
+            </div>
+            <div class="suit-row" data-suit="2">
+                <div class="suit-label">筒</div>
+                <div class="tiles-row" id="row-2"></div>
+            </div>
+        </div>
+
+        <!-- 底部按钮 -->
+        <div id="btn-bar">
+            <button id="submit-btn" disabled>提交消除</button>
+            <button id="new-game-btn" style="display:none;">再玩一次</button>
+        </div>
+    </div>
+
+    <!-- 弹窗遮罩 -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal-box">
+            <div id="modal-title"></div>
+            <div id="modal-content"></div>
+            <div id="modal-buttons"></div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="setup-overlay" class="hidden">
+        <div id="setup-box">
+            <h2>游戏设置</h2>
+            <div class="setup-field">
+                <label>拆几张（任意正整数）：</label>
+                <input type="number" id="draw-input" value="8" min="1">
+            </div>
+            <div class="setup-field">
+                <label>幸运数字（1-9）：</label>
+                <input type="number" id="lucky-input" value="3" min="1" max="9">
+            </div>
+            <div id="setup-buttons">
+                <button id="start-btn">开始游戏</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
