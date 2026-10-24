@@ -5,7 +5,7 @@
 
 // ==================== 常量 ====================
 const SUIT_NAMES = ["万", "条", "筒"];
-const ZI_NAMES = ["东", "南", "西", "北", "中", "白"];
+const ZI_NAMES = ["东", "南", "西", "北", "中", "白","发"];
 const IMAGE_DIR = "images";
 
 // ==================== 游戏状态 ====================
@@ -32,6 +32,11 @@ let currentCombos = [];
 let currentMaxReward = 0;
 let bestCombos = [];
 
+// 第一排手动结算
+let isSettlingTopRow = false;
+let selectedTopZi = new Set();
+let selectedTopLucky = new Set();
+
 // 日志
 let gameLog = [];
 
@@ -39,6 +44,8 @@ let gameLog = [];
 const scoreEl = document.getElementById("score");
 const logContentEl = document.getElementById("log-content");
 const msgBarEl = document.getElementById("msg-bar");
+const comboHintEl = document.getElementById("combo-hint");
+const topRowTitleEl = document.getElementById("top-row-title");
 const topRowEl = document.getElementById("top-row");
 const submitBtn = document.getElementById("submit-btn");
 const newGameBtn = document.getElementById("new-game-btn");
@@ -84,7 +91,7 @@ function imageName(suit, number) {
 }
 
 function ziImageName(ziName) {
-    const map = { "东": "dong.png", "南": "nan.png", "西": "xi.png", "北": "bei.png", "中": "zhong.png", "白": "bai.png" };
+    const map = { "东": "dong.png", "南": "nan.png", "西": "xi.png", "北": "bei.png", "中": "zhong.png", "白": "bai.png" , "发": "发.png"};
     return map[ziName] || "";
 }
 
@@ -151,6 +158,9 @@ function resetGame() {
     isManualMode = false;
     currentCombos = [];
     bestCombos = [];
+    isSettlingTopRow = false;
+    selectedTopZi.clear();
+    selectedTopLucky.clear();
     gameLog = [];
     drawnCounts = Array.from({length: 3}, () => new Array(10).fill(0));
     drawnZi = new Array(7).fill(0);
@@ -172,6 +182,7 @@ function startGame() {
 
     log("===== 游戏开始 =====");
     log("拆牌数：" + drawCount + "，幸运数字：" + luckyNumber);
+    topRowTitleEl.textContent = "幸运牌 / 字牌（幸运数字：" + luckyNumber + "）";
     msgBarEl.textContent = "初始发牌 " + drawCount + " 张，幸运数字：" + luckyNumber;
 
     for (let i = 0; i < drawCount; i++) {
@@ -182,6 +193,7 @@ function startGame() {
     refreshUI();
 
     settleTopRow().then(() => {
+        if (isSettlingTopRow) return;
         playRound();
     });
 }
@@ -234,82 +246,33 @@ function settleTopRow() {
         return Promise.resolve();
     }
 
-    let sb = "第1排有待结算的牌：\n";
+    // 进入手动结算模式，不再弹框
+    isSettlingTopRow = true;
+    selectedCounts = {};
+    submitBtn.disabled = false;
+
+    let hint = "第一排有待结算的牌：";
     if (hasZi) {
-        sb += "字牌：";
+        hint += " 字牌";
         for (const [zi, cnt] of Object.entries(topZi)) {
-            if (cnt > 0) sb += zi + "x" + cnt + " ";
+            if (cnt > 0) hint += " " + zi + "x" + cnt;
         }
-        sb += "（将自动消除并奖励）\n";
     }
     if (hasLucky) {
-        sb += "幸运牌：";
+        hint += " 幸运牌";
         for (const [key, cnt] of Object.entries(topLucky)) {
             if (cnt > 0) {
                 const s = suitFromKey(key);
                 const n = numberFromKey(key);
-                sb += n + SUIT_NAMES[s] + "x" + cnt + " ";
+                hint += " " + n + SUIT_NAMES[s] + "x" + cnt;
             }
         }
-        sb += "（将移到手牌区）\n";
     }
-    sb += "\n是否确认结算？";
-
-    return new Promise(resolve => {
-        showModal("第1排结算确认", sb, [
-            { text: "确认", action: () => { doSettle(); resolve(); } },
-            { text: "取消", action: () => resolve(), secondary: true }
-        ]);
-    });
-
-    function doSettle() {
-        while (Object.keys(topZi).length > 0 || Object.keys(topLucky).length > 0) {
-            // 结算字牌
-            let changed = true;
-            while (changed) {
-                changed = false;
-                const ziRewards = [];
-                const ziEntries = Object.entries(topZi);
-                for (const [ziName, cnt] of ziEntries) {
-                    if (cnt > 0) {
-                        delete topZi[ziName];
-                        changed = true;
-                        log("结算字牌：" + ziName + " x" + cnt + "，奖励 " + cnt + " 张");
-                        for (let i = 0; i < cnt; i++) {
-                            ziRewards.push(drawCard());
-                        }
-                    }
-                }
-                for (const reward of ziRewards) {
-                    log("  字牌奖励牌：" + rewardDesc(reward));
-                    placeCardToRow(reward);
-                }
-            }
-            // 结算幸运牌
-            if (Object.keys(topLucky).length > 0) {
-                const copy = { ...topLucky };
-                topLucky = {};
-                for (const [key, cnt] of Object.entries(copy)) {
-                    const s = suitFromKey(key);
-                    const n = numberFromKey(key);
-                    const name = n + SUIT_NAMES[s];
-                    log("结算幸运牌：" + name + " x" + cnt + "，奖励 " + cnt + " 张，并移到手牌区");
-                    const luckyRewards = [];
-                    for (let i = 0; i < cnt; i++) {
-                        luckyRewards.push(drawCard());
-                    }
-                    for (const reward of luckyRewards) {
-                        log("  幸运牌奖励牌：" + rewardDesc(reward));
-                        placeCardToRow(reward);
-                    }
-                    if (s >= 0 && n >= 0) {
-                        counts[s][n] += cnt;
-                    }
-                }
-            }
-        }
-        refreshUI();
-    }
+    hint += "，请点击选中后提交结算";
+    msgBarEl.textContent = hint;
+    comboHintEl.innerHTML = "";
+    refreshUI();
+    return Promise.resolve();
 }
 
 // ==================== UI 刷新 ====================
@@ -336,11 +299,15 @@ function refreshUI() {
     for (const [ziName, cnt] of Object.entries(topZi)) {
         if (cnt <= 0) continue;
         const div = document.createElement("div");
-        div.className = "top-tile";
+        div.className = "top-tile" + (selectedTopZi.has(ziName) ? " selected" : "");
+        if (isSettlingTopRow) {
+            div.style.cursor = "pointer";
+            div.onclick = () => onTopZiClicked(ziName);
+        }
         div.innerHTML = `
-            <img src="${IMAGE_DIR}/${ziImageName(ziName)}" alt="${ziName}" onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend','<div class=\'tile-text\' style=\'font-size:14px\'>${ziName}</div>')">
+            <img src="${IMAGE_DIR}/${ziImageName(ziName)}" alt="${ziName}" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+            <div class="tile-text" style="display:none">${ziName}</div>
             ${cnt > 1 ? `<div class="count-badge">x${cnt}</div>` : ""}
-            <div class="tile-name">${ziName}</div>
         `;
         topRowEl.appendChild(div);
     }
@@ -350,11 +317,15 @@ function refreshUI() {
         const n = numberFromKey(key);
         const name = n + SUIT_NAMES[s] + "(幸)";
         const div = document.createElement("div");
-        div.className = "top-tile lucky";
+        div.className = "top-tile lucky" + (selectedTopLucky.has(key) ? " selected" : "");
+        if (isSettlingTopRow) {
+            div.style.cursor = "pointer";
+            div.onclick = () => onTopLuckyClicked(key);
+        }
         div.innerHTML = `
-            <img src="${IMAGE_DIR}/${imageName(s, n)}" alt="${name}" onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend','<div class=\'tile-text\' style=\'font-size:12px\'>${name}</div>')">
+            <img src="${IMAGE_DIR}/${imageName(s, n)}" alt="${name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+            <div class="tile-text" style="display:none">${name}</div>
             ${cnt > 1 ? `<div class="count-badge">x${cnt}</div>` : ""}
-            <div class="tile-name">${name}</div>
         `;
         topRowEl.appendChild(div);
     }
@@ -368,6 +339,7 @@ function refreshUI() {
 
 // ==================== 点击交互 ====================
 function onTileClicked(key) {
+    if (isSettlingTopRow) return;
     if (!isManualMode) return;
     const handCount = getCount(key);
     if (handCount <= 0) return;
@@ -402,6 +374,26 @@ function updateSelectionBorder() {
             }
         }
     }
+}
+
+function onTopZiClicked(ziName) {
+    if (!isSettlingTopRow) return;
+    if (selectedTopZi.has(ziName)) {
+        selectedTopZi.delete(ziName);
+    } else {
+        selectedTopZi.add(ziName);
+    }
+    refreshUI();
+}
+
+function onTopLuckyClicked(key) {
+    if (!isSettlingTopRow) return;
+    if (selectedTopLucky.has(key)) {
+        selectedTopLucky.delete(key);
+    } else {
+        selectedTopLucky.add(key);
+    }
+    refreshUI();
 }
 
 function highlightCombo(combo) {
@@ -480,6 +472,15 @@ function findAllCombos() {
         }
     }
 
+    // 同一key两张凑10（仅5+5）
+    for (const key of numKeys) {
+        const n = numberFromKey(key);
+        if (n === 5 && getCount(key) >= 2) {
+            list.push(new Combo(1, [key, key], [1,1], n + " + " + n + " = 10，奖励1张"));
+            hasTwoSum10 = true;
+        }
+    }
+
     // 奖励1：3张和为10（仅当没有2张和为10时）
     if (!hasTwoSum10) {
         for (let i = 0; i < numKeys.length; i++) {
@@ -518,34 +519,21 @@ function playRound() {
     const comboSb = "可消除组合：" + bestCombos.map(c => c.desc).join("；");
     gameLog.push(comboSb);
 
-    if (bestCombos.length === 1) {
-        isManualMode = false;
-        submitBtn.disabled = true;
-        const combo = bestCombos[0];
-        msgBarEl.textContent = "【自动消除】" + combo.desc;
-        highlightCombo(combo);
+    // 统一进入手动模式，不再自动弹框
+    isManualMode = true;
+    selectedCounts = {};
+    updateSelectionBorder();
+    submitBtn.disabled = false;
+    msgBarEl.textContent = "请手动选择牌型后点击提交（当前最高奖励 " + currentMaxReward + " 张）";
+    updateComboHint(bestCombos);
+}
 
-        setTimeout(() => {
-            showModal("自动消除确认",
-                "系统发现可消除牌型：\n" + combo.desc + "\n\n是否确认消除？",
-                [
-                    { text: "确认", action: () => { clearHighlight(); executeElimination(combo); } },
-                    { text: "取消", action: () => {
-                        clearHighlight();
-                        msgBarEl.textContent = "自动消除已取消，请手动选择牌后点击提交";
-                        isManualMode = true;
-                        submitBtn.disabled = false;
-                    }, secondary: true }
-                ]
-            );
-        }, 300);
-    } else {
-        isManualMode = true;
-        selectedCounts = {};
-        updateSelectionBorder();
-        submitBtn.disabled = false;
-        msgBarEl.textContent = "【手动选择】发现 " + bestCombos.length + " 种奖励 " + currentMaxReward + " 张的组合，请点击牌后提交";
+function updateComboHint(combos) {
+    let html = '<div class="hint-title">可消除牌型（奖励 ' + currentMaxReward + ' 张）：</div>';
+    for (const combo of combos) {
+        html += '<span class="hint-item">' + combo.desc + '</span>';
     }
+    comboHintEl.innerHTML = html;
 }
 
 function formatHandState() {
@@ -566,6 +554,15 @@ function formatHandState() {
 }
 
 function onSubmit() {
+    if (isSettlingTopRow) {
+        if (selectedTopZi.size === 0 && selectedTopLucky.size === 0) {
+            showModal("提示", "请先选中第一排的字牌或幸运牌进行结算！", [{text: "确定", action: () => {}}]);
+            return;
+        }
+        executeTopRowSettlement();
+        return;
+    }
+
     if (!isManualMode || Object.keys(selectedCounts).length === 0) {
         showModal("提示", "请先点击选择要消除的牌！", [{text: "确定", action: () => {}}]);
         return;
@@ -590,9 +587,64 @@ function onSubmit() {
     executeElimination(matched);
 }
 
+function executeTopRowSettlement() {
+    // 结算选中的字牌
+    for (const ziName of Array.from(selectedTopZi)) {
+        const cnt = topZi[ziName] || 0;
+        if (cnt > 0) {
+            delete topZi[ziName];
+            log("手动结算字牌：" + ziName + " x" + cnt + "，奖励 " + cnt + " 张");
+            for (let i = 0; i < cnt; i++) {
+                const reward = drawCard();
+                log("  字牌奖励牌：" + rewardDesc(reward));
+                placeCardToRow(reward);
+            }
+        }
+    }
+
+    // 结算选中的幸运牌
+    for (const key of Array.from(selectedTopLucky)) {
+        const cnt = topLucky[key] || 0;
+        if (cnt > 0) {
+            delete topLucky[key];
+            const s = suitFromKey(key);
+            const n = numberFromKey(key);
+            const name = n + SUIT_NAMES[s];
+            log("手动结算幸运牌：" + name + " x" + cnt + "，奖励 " + cnt + " 张，并移到手牌区");
+            const luckyRewards = [];
+            for (let i = 0; i < cnt; i++) {
+                luckyRewards.push(drawCard());
+            }
+            for (const reward of luckyRewards) {
+                log("  幸运牌奖励牌：" + rewardDesc(reward));
+                placeCardToRow(reward);
+            }
+            if (s >= 0 && n >= 0) {
+                counts[s][n] += cnt;
+            }
+        }
+    }
+
+    selectedTopZi.clear();
+    selectedTopLucky.clear();
+    refreshUI();
+
+    // 检查第一排是否还有牌
+    const hasZi = Object.keys(topZi).length > 0;
+    const hasLucky = Object.keys(topLucky).length > 0;
+    if (hasZi || hasLucky) {
+        msgBarEl.textContent = "第一排还有未结算的牌，请继续选中并提交";
+    } else {
+        isSettlingTopRow = false;
+        submitBtn.disabled = true;
+        playRound();
+    }
+}
+
 function matchesSelection(combo) {
     const totalSelected = Object.values(selectedCounts).reduce((a, b) => a + b, 0);
-    if (totalSelected !== combo.keys.length) return false;
+    const totalNeed = combo.need.reduce((a, b) => a + b, 0);
+    if (totalSelected !== totalNeed) return false;
 
     const comboNeed = {};
     for (let i = 0; i < combo.keys.length; i++) {
@@ -600,8 +652,12 @@ function matchesSelection(combo) {
         comboNeed[key] = (comboNeed[key] || 0) + combo.need[i];
     }
 
+    // 每个需要的key张数必须正好匹配，且不能多选其他牌
     for (const [key, need] of Object.entries(comboNeed)) {
-        if ((selectedCounts[key] || 0) < need) return false;
+        if ((selectedCounts[key] || 0) !== need) return false;
+    }
+    for (const [key, count] of Object.entries(selectedCounts)) {
+        if (!comboNeed[key]) return false;
     }
     return true;
 }
@@ -620,33 +676,34 @@ function executeElimination(combo) {
     selectedCounts = {};
     refreshUI();
 
-    showModal("消除成功", "消除成功！\n" + combo.desc + "\n获得奖励 " + combo.reward + " 张牌！", [
-        { text: "确定", action: () => {
-            log("发放奖励牌 " + combo.reward + " 张：");
-            for (let i = 0; i < combo.reward; i++) {
-                const c = drawCard();
-                log("  奖励牌：" + rewardDesc(c));
-                placeCardToRow(c);
-            }
-            refreshUI();
+    log("消除成功！" + combo.desc + "，获得奖励 " + combo.reward + " 张牌");
+    log("发放奖励牌 " + combo.reward + " 张：");
+    for (let i = 0; i < combo.reward; i++) {
+        const c = drawCard();
+        log("  奖励牌：" + rewardDesc(c));
+        placeCardToRow(c);
+    }
+    refreshUI();
 
-            settleTopRow().then(() => {
-                let empty = true;
-                for (let s = 0; s < 3; s++) {
-                    for (let n = 1; n <= 9; n++) {
-                        if (counts[s][n] > 0) { empty = false; break; }
-                    }
-                }
-                if (empty) {
-                    showModal("提示", "手牌已空，按初始设置重新发牌！", [
-                        { text: "确定", action: () => { startGame(); } }
-                    ]);
-                } else {
-                    setTimeout(() => playRound(), 200);
-                }
-            });
-        }}
-    ]);
+    settleTopRow().then(() => {
+        if (isSettlingTopRow) {
+            // 第一排还有牌需要手动结算，不继续playRound
+            return;
+        }
+        let empty = true;
+        for (let s = 0; s < 3; s++) {
+            for (let n = 1; n <= 9; n++) {
+                if (counts[s][n] > 0) { empty = false; break; }
+            }
+        }
+        if (empty) {
+            showModal("提示", "手牌已空，按初始设置重新发牌！", [
+                { text: "确定", action: () => { startGame(); } }
+            ]);
+        } else {
+            setTimeout(() => playRound(), 200);
+        }
+    });
 }
 
 function gameOver() {
@@ -654,6 +711,7 @@ function gameOver() {
     submitBtn.disabled = true;
     newGameBtn.style.display = "inline-block";
     msgBarEl.textContent = "游戏结束！";
+    comboHintEl.innerHTML = "";
     log("===== 游戏结束，最终分数：" + totalDrawn + " 张 =====");
 
     gameLog.push("");
@@ -675,6 +733,7 @@ function gameOver() {
     showModal("游戏结束",
         "没有可消除的牌型了！\n您的最终分数（累计发牌）：" + totalDrawn + " 张",
         [
+            { text: "确定", action: () => { /* 只是关闭弹窗 */ } },
             { text: "下载日志", action: () => {
                 const a = document.createElement("a");
                 a.href = url;
