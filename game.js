@@ -735,11 +735,11 @@ function gameOver() {
         [
             { text: "确定", action: () => { /* 只是关闭弹窗 */ } },
             { text: "下载日志", action: () => {
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = filename;
-                a.click();
-            }},
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                }},
             { text: "再玩一次", action: () => { showSetupDialog(); } }
         ]
     );
