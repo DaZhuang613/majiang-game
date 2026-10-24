@@ -196,6 +196,21 @@ body {
     pointer-events: none;
 }
 
+/* 选中张数角标 */
+.select-badge {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    background: #43a047;
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 1px 3px;
+    border-radius: 6px;
+    line-height: 1;
+    pointer-events: none;
+}
+
 /* 状态边框 */
 .tile.selected {
     border: 3px solid #43a047;
