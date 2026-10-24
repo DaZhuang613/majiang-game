@@ -96,7 +96,7 @@ function imageName(suit, number) {
 }
 
 function ziImageName(ziName) {
-    const map = { "东": "dong.png", "南": "nan.png", "西": "xi.png", "北": "bei.png", "中": "zhong.png", "白": "bai.png" , "发": "发.png"};
+    const map = { "东": "dong.png", "南": "nan.png", "西": "xi.png", "北": "bei.png", "中": "zhong.png", "白": "bai.png" , "发": "fa.png"};
     return map[ziName] || "";
 }
 
@@ -208,7 +208,7 @@ function pad(n) { return n < 10 ? "0" + n : n; }
 // ==================== 牌库与发牌 ====================
 function drawCard() {
     totalDrawn++;
-    const type = Math.floor(Math.random() * 33);
+    const type = Math.floor(Math.random() * 34);
     const card = { suit: 0, number: 0, lucky: false, ziName: "" };
     if (type < 27) {
         card.suit = Math.floor(type / 9);
@@ -783,7 +783,7 @@ function formatDrawnSuit(suit) {
 function formatDrawnZi() {
     let sb = "";
     let hasAny = false;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
         if (drawnZi[i] > 0) {
             if (hasAny) sb += "、";
             sb += drawnZi[i] + "张" + ZI_NAMES[i];
