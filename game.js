@@ -14,6 +14,12 @@ let drawCount = 0;
 let totalDrawn = 0;
 let roundCount = 0;
 
+// 癞子模式：字牌（东南西北中白发）当癞子使用。
+// 规则：不产生奖励牌；必须搭配数字牌一起打出；单次消除最多使用 1 张。
+let isJokerMode = false;
+// 本局是否已结束（结束后癞子不再可点选）
+let isGameOver = false;
+
 // counts[suit][number]  suit:0=万,1=条,2=筒  number:1-9
 let counts = Array.from({length: 3}, () => new Array(10).fill(0));
 
@@ -36,6 +42,9 @@ let bestCombos = [];
 let isSettlingTopRow = false;
 let selectedTopZi = new Set();
 let selectedTopLucky = new Set();
+
+// 癞子模式下当前选中的字牌（单选，单次最多用 1 张）
+let selectedJoker = "";
 
 // 日志
 let gameLog = [];
@@ -148,6 +157,7 @@ function onStartClick() {
     }
     drawCount = drawVal;
     luckyNumber = luckyVal;
+    isJokerMode = document.getElementById("joker-input").checked;
     setupOverlay.classList.add("hidden");
     resetGame();
     startGame();
@@ -166,6 +176,8 @@ function resetGame() {
     isSettlingTopRow = false;
     selectedTopZi.clear();
     selectedTopLucky.clear();
+    selectedJoker = "";
+    isGameOver = false;
     gameLog = [];
     drawnCounts = Array.from({length: 3}, () => new Array(10).fill(0));
     drawnZi = new Array(7).fill(0);
@@ -180,14 +192,15 @@ function startGame() {
     const timeStr = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
     gameLog.push("========== 麻将消除游戏日志 ==========");
     gameLog.push("开始时间：" + timeStr);
+    gameLog.push("玩法模式：" + (isJokerMode ? "癞子模式（字牌当癞子）" : "经典模式"));
     gameLog.push("拆牌数：" + drawCount);
     gameLog.push("幸运数字：" + luckyNumber);
     gameLog.push("");
     gameLog.push("===== 初始发牌 =====");
 
     log("===== 游戏开始 =====");
-    log("拆牌数：" + drawCount + "，幸运数字：" + luckyNumber);
-    topRowTitleEl.textContent = "幸运牌 / 字牌（幸运数字：" + luckyNumber + "）";
+    log("玩法模式：" + (isJokerMode ? "癞子模式" : "经典模式") + "，拆牌数：" + drawCount + "，幸运数字：" + luckyNumber);
+    topRowTitleEl.textContent = (isJokerMode ? "癞子 / 幸运牌" : "幸运牌 / 字牌") + "（幸运数字：" + luckyNumber + "）";
     msgBarEl.textContent = "初始发牌 " + drawCount + " 张，幸运数字：" + luckyNumber;
 
     for (let i = 0; i < drawCount; i++) {
@@ -199,6 +212,11 @@ function startGame() {
 
     settleTopRow().then(() => {
         if (isSettlingTopRow) return;
+        // 癞子模式下数字牌可能全被发到第一排（字牌），需走空手牌判定
+        if (isJokerMode) {
+            checkHandEmptyAndContinue();
+            return;
+        }
         playRound();
     });
 }
@@ -243,9 +261,17 @@ function placeCardToRow(card) {
     }
 }
 
+// 第一排可用的癞子总数（癞子模式下字牌即癞子）
+function jokerTotal() {
+    let t = 0;
+    for (const c of Object.values(topZi)) t += c;
+    return t;
+}
+
 // ==================== 第1排结算 ====================
 function settleTopRow() {
-    const hasZi = Object.values(topZi).some(c => c > 0);
+    // 癞子模式：字牌留在第一排当癞子用，不参与结算、也不阻塞流程
+    const hasZi = isJokerMode ? false : Object.values(topZi).some(c => c > 0);
     const hasLucky = Object.keys(topLucky).length > 0;
     if (!hasZi && !hasLucky) {
         return Promise.resolve();
@@ -274,6 +300,9 @@ function settleTopRow() {
         }
     }
     hint += "，请点击选中后提交结算";
+    if (isJokerMode) {
+        hint += "（癞子不参与结算、不发奖励，可随时点选）";
+    }
     msgBarEl.textContent = hint;
     comboHintEl.innerHTML = "";
     refreshUI();
@@ -290,7 +319,11 @@ function refreshUI() {
             handCount += counts[s][n];
         }
     }
-    handCountEl.textContent = "手牌：" + handCount + " 张";
+    if (isJokerMode) {
+        handCountEl.textContent = "手牌：" + handCount + " 张 ｜ 癞子：" + jokerTotal() + " 张";
+    } else {
+        handCountEl.textContent = "手牌：" + handCount + " 张";
+    }
 
     // 下面3排
     for (let s = 0; s < 3; s++) {
@@ -311,9 +344,20 @@ function refreshUI() {
     topRowEl.innerHTML = "";
     for (const [ziName, cnt] of Object.entries(topZi)) {
         if (cnt <= 0) continue;
+        const ziSelected = isJokerMode ? (selectedJoker === ziName) : selectedTopZi.has(ziName);
+        let cls = "top-tile";
+        if (isJokerMode) cls += " joker";
+        if (ziSelected) cls += " selected";
         const div = document.createElement("div");
-        div.className = "top-tile" + (selectedTopZi.has(ziName) ? " selected" : "");
-        if (isSettlingTopRow) {
+        div.className = cls;
+        if (isJokerMode) {
+            // 癞子随时可点选：即使第一排有幸运牌待结算也不锁死，
+            // 选中的癞子会一直保留到真正打出为止
+            if (!isGameOver) {
+                div.style.cursor = "pointer";
+                div.onclick = () => onJokerClicked(ziName);
+            }
+        } else if (isSettlingTopRow) {
             div.style.cursor = "pointer";
             div.onclick = () => onTopZiClicked(ziName);
         }
@@ -347,6 +391,7 @@ function refreshUI() {
     for (const key of Object.keys(selectedCounts)) {
         if (getCount(key) <= 0) delete selectedCounts[key];
     }
+    if (selectedJoker && !(topZi[selectedJoker] > 0)) selectedJoker = "";
     updateSelectionBorder();
 }
 
@@ -409,6 +454,21 @@ function onTopLuckyClicked(key) {
     refreshUI();
 }
 
+// 癞子模式下点选/取消第一排的癞子（单次最多 1 张，点击另一张会自动替换）
+function onJokerClicked(ziName) {
+    if (!isJokerMode || isGameOver) return;
+    if (selectedJoker === ziName) {
+        selectedJoker = "";
+    } else {
+        selectedJoker = ziName;
+        // 结算幸运牌阶段也能预选癞子，这里只提示、不改动结算流程
+        if (isSettlingTopRow) {
+            msgBarEl.textContent = "已选中癞子「" + ziName + "」，先结算幸运牌，随后用它与数字牌组成牌型打出";
+        }
+    }
+    refreshUI();
+}
+
 function highlightCombo(combo) {
     clearHighlight();
     for (const key of combo.keys) {
@@ -422,11 +482,13 @@ function clearHighlight() {
 }
 
 // ==================== 消除逻辑 ====================
-function Combo(reward, keys, need, desc) {
+// joker=true 表示该组合需要用 1 张癞子补位（keys/need 只描述数字牌部分）
+function Combo(reward, keys, need, desc, joker) {
     this.reward = reward;
     this.keys = keys;
     this.need = need;
     this.desc = desc;
+    this.joker = !!joker;
 }
 
 function findAllCombos() {
@@ -515,9 +577,94 @@ function findAllCombos() {
     return list;
 }
 
+// ==================== 癞子模式：牌型枚举 ====================
+// 规则要点：
+//   1. 单次消除最多使用 1 张癞子；
+//   2. 癞子不能单独打出，必须搭配数字牌；
+//   3. 癞子计入张数，奖励按原规则计算（同数字 3 张→2 张，4~7 张→n 张，≥8 张→7 张）。
+function findAllCombosWithJoker() {
+    // 不含癞子的常规组合照旧
+    const list = findAllCombos();
+    if (jokerTotal() <= 0) return list;
+
+    // 1) 一条龙：9 个数字位齐全、只缺 1 位 → 癞子补缺
+    for (let s = 0; s < 3; s++) {
+        const ks = [];
+        const missing = [];
+        for (let n = 1; n <= 9; n++) {
+            if (counts[s][n] >= 1) ks.push(keyFor(s, n));
+            else missing.push(n);
+        }
+        if (missing.length === 1) {
+            list.push(new Combo(7, ks, ks.map(() => 1),
+                SUIT_NAMES[s] + "1-9一条龙（癞子当" + missing[0] + SUIT_NAMES[s] + "），奖励7张", true));
+        }
+    }
+
+    // 2) 同花色同数字：use 张 + 1 张癞子
+    for (let s = 0; s < 3; s++) {
+        for (let n = 1; n <= 9; n++) {
+            const c = counts[s][n];
+            if (c < 2) continue;
+            const k = keyFor(s, n);
+            const seenReward = new Set(); // 同一档奖励只保留最省牌的方案，避免提示刷屏
+            for (let use = 2; use <= c; use++) {
+                const total = use + 1;
+                const reward = total === 3 ? 2 : Math.min(total, 7);
+                if (seenReward.has(reward)) continue;
+                seenReward.add(reward);
+                list.push(new Combo(reward, [k], [use],
+                    n + SUIT_NAMES[s] + " x" + use + " + 癞子 = " + total + "张，奖励" + reward + "张", true));
+            }
+        }
+    }
+
+    // 3) 顺子：同花色连续 3 张中缺 1 张 → 癞子补位
+    for (let s = 0; s < 3; s++) {
+        for (let start = 1; start <= 7; start++) {
+            const ks = [];
+            const need = [];
+            const missing = [];
+            for (let i = 0; i < 3; i++) {
+                const n = start + i;
+                if (counts[s][n] >= 1) {
+                    ks.push(keyFor(s, n));
+                    need.push(1);
+                } else {
+                    missing.push(n);
+                }
+            }
+            if (missing.length === 1) {
+                list.push(new Combo(2, ks, need,
+                    SUIT_NAMES[s] + start + "-" + (start + 2) + "顺子（癞子当" + missing[0] + SUIT_NAMES[s] + "），奖励2张", true));
+            }
+        }
+    }
+
+    // 4) 两张合 10：1 张数字牌 + 癞子（可跨花色，癞子当 10-n 点）
+    const numKeys = [];
+    for (let s = 0; s < 3; s++) {
+        for (let n = 1; n <= 9; n++) {
+            if (counts[s][n] >= 1) numKeys.push(keyFor(s, n));
+        }
+    }
+    for (const key of numKeys) {
+        const s = suitFromKey(key);
+        const n = numberFromKey(key);
+        list.push(new Combo(1, [key], [1],
+            n + SUIT_NAMES[s] + " + 癞子当" + (10 - n) + " = 10，奖励1张", true));
+    }
+
+    // 注：三张合 10 的癞子版不单独生成。
+    // 因为有癞子时「1 张数字牌 + 癞子」必然能凑 10，按原规则「两张合 10 优先于三张合 10」，
+    // 三张合 10 不会再作为可选牌型出现。
+
+    return list;
+}
+
 // ==================== 回合控制 ====================
 function playRound() {
-    currentCombos = findAllCombos();
+    currentCombos = isJokerMode ? findAllCombosWithJoker() : findAllCombos();
     if (currentCombos.length === 0) {
         gameOver();
         return;
@@ -539,14 +686,20 @@ function playRound() {
     selectedCounts = {};
     updateSelectionBorder();
     submitBtn.disabled = false;
-    msgBarEl.textContent = "请手动选择牌型后点击提交（当前最高奖励 " + currentMaxReward + " 张）";
+    msgBarEl.textContent = isJokerMode
+        ? "请选择牌型后提交（最高奖励 " + currentMaxReward + " 张，可搭配 1 张癞子）"
+        : "请手动选择牌型后点击提交（当前最高奖励 " + currentMaxReward + " 张）";
     updateComboHint(bestCombos);
 }
 
 function updateComboHint(combos) {
+    const MAX_SHOW = 12;
     let html = '<div class="hint-title">可消除牌型（奖励 ' + currentMaxReward + ' 张）：</div>';
-    for (const combo of combos) {
+    for (const combo of combos.slice(0, MAX_SHOW)) {
         html += '<span class="hint-item">' + combo.desc + '</span>';
+    }
+    if (combos.length > MAX_SHOW) {
+        html += '<span class="hint-item">…等共 ' + combos.length + ' 种</span>';
     }
     comboHintEl.innerHTML = html;
 }
@@ -571,14 +724,18 @@ function formatHandState() {
 function onSubmit() {
     if (isSettlingTopRow) {
         if (selectedTopZi.size === 0 && selectedTopLucky.size === 0) {
-            showModal("提示", "请先选中第一排的字牌或幸运牌进行结算！", [{text: "确定", action: () => {}}]);
+            showModal("提示", isJokerMode
+                ? "请先选中第一排的幸运牌进行结算！（癞子不参与结算，已选中的癞子会保留）"
+                : "请先选中第一排的字牌或幸运牌进行结算！",
+                [{text: "确定", action: () => {}}]);
             return;
         }
         executeTopRowSettlement();
         return;
     }
 
-    if (!isManualMode || Object.keys(selectedCounts).length === 0) {
+    const hasAnySelection = Object.keys(selectedCounts).length > 0 || (isJokerMode && selectedJoker !== "");
+    if (!isManualMode || !hasAnySelection) {
         showModal("提示", "请先点击选择要消除的牌！", [{text: "确定", action: () => {}}]);
         return;
     }
@@ -592,9 +749,16 @@ function onSubmit() {
     }
 
     if (!matched) {
-        showModal("非法选择",
-            "选择不合法！\n当前最高奖励级别为 " + currentMaxReward + " 张，\n您的选择不符合任何可用组合，请重新选择。",
-            [{text: "确定", action: () => { selectedCounts = {}; updateSelectionBorder(); }}]
+        let tip = "选择不合法！\n当前最高奖励级别为 " + currentMaxReward + " 张，\n您的选择不符合任何可用组合，请重新选择。";
+        if (isJokerMode) {
+            tip += "\n\n癞子规则：每次消除最多用 1 张，且必须与数字牌组成牌型一起打出，不能单独使用。";
+        }
+        showModal("非法选择", tip,
+            [{text: "确定", action: () => {
+                selectedCounts = {};
+                selectedJoker = "";
+                refreshUI();
+            }}]
         );
         return;
     }
@@ -603,16 +767,18 @@ function onSubmit() {
 }
 
 function executeTopRowSettlement() {
-    // 结算选中的字牌
-    for (const ziName of Array.from(selectedTopZi)) {
-        const cnt = topZi[ziName] || 0;
-        if (cnt > 0) {
-            delete topZi[ziName];
-            log("手动结算字牌：" + ziName + " x" + cnt + "，奖励 " + cnt + " 张");
-            for (let i = 0; i < cnt; i++) {
-                const reward = drawCard();
-                log("  字牌奖励牌：" + rewardDesc(reward));
-                placeCardToRow(reward);
+    // 结算选中的字牌（癞子模式下字牌不发奖励，直接跳过）
+    if (!isJokerMode) {
+        for (const ziName of Array.from(selectedTopZi)) {
+            const cnt = topZi[ziName] || 0;
+            if (cnt > 0) {
+                delete topZi[ziName];
+                log("手动结算字牌：" + ziName + " x" + cnt + "，奖励 " + cnt + " 张");
+                for (let i = 0; i < cnt; i++) {
+                    const reward = drawCard();
+                    log("  字牌奖励牌：" + rewardDesc(reward));
+                    placeCardToRow(reward);
+                }
             }
         }
     }
@@ -645,7 +811,7 @@ function executeTopRowSettlement() {
     refreshUI();
 
     // 检查第一排是否还有牌
-    const hasZi = Object.keys(topZi).length > 0;
+    const hasZi = isJokerMode ? false : Object.keys(topZi).length > 0;
     const hasLucky = Object.keys(topLucky).length > 0;
     if (hasZi || hasLucky) {
         msgBarEl.textContent = "第一排还有未结算的牌，请继续选中并提交";
@@ -656,26 +822,44 @@ function executeTopRowSettlement() {
     }
 }
 
-function checkHandEmptyAndContinue() {
-    let empty = true;
+// 统计手牌中的数字牌总数（不含第一排癞子）
+function countHandTiles() {
+    let n = 0;
     for (let s = 0; s < 3; s++) {
-        for (let n = 1; n <= 9; n++) {
-            if (counts[s][n] > 0) { empty = false; break; }
-        }
+        for (let i = 1; i <= 9; i++) n += counts[s][i];
     }
-    if (empty) {
-        showModal("提示", "手牌已空，按初始设置重新发牌！", [
-            { text: "确定", action: () => { startGame(); } }
-        ]);
-    } else {
+    return n;
+}
+
+function checkHandEmptyAndContinue() {
+    if (countHandTiles() > 0) {
         setTimeout(() => playRound(), 200);
+        return;
     }
+
+    // 癞子模式：数字牌打空即结束（癞子不能单独打出，留着也无解）
+    if (isJokerMode) {
+        gameOver();
+        return;
+    }
+
+    // 经典模式：沿用原玩法，按初始设置重新发牌
+    showModal("提示", "手牌已空，按初始设置重新发牌！", [
+        { text: "确定", action: () => { startGame(); } }
+    ]);
 }
 
 function matchesSelection(combo) {
-    const totalSelected = Object.values(selectedCounts).reduce((a, b) => a + b, 0);
-    const totalNeed = combo.need.reduce((a, b) => a + b, 0);
+    const needJoker = combo.joker ? 1 : 0;
+    let totalSelected = selectedJoker ? 1 : 0;
+    for (const v of Object.values(selectedCounts)) totalSelected += v;
+
+    const totalNeed = combo.need.reduce((a, b) => a + b, 0) + needJoker;
     if (totalSelected !== totalNeed) return false;
+
+    // 癞子必须与牌型严格对应：需要癞子的组合必须选中 1 张，不需要的不能多选
+    if (needJoker === 1 && !selectedJoker) return false;
+    if (needJoker === 0 && selectedJoker) return false;
 
     const comboNeed = {};
     for (let i = 0; i < combo.keys.length; i++) {
@@ -704,6 +888,19 @@ function executeElimination(combo) {
             if (counts[s][n] < 0) counts[s][n] = 0;
         }
     }
+
+    // 消耗 1 张癞子
+    if (combo.joker && selectedJoker) {
+        const left = (topZi[selectedJoker] || 0) - 1;
+        if (left > 0) {
+            topZi[selectedJoker] = left;
+        } else {
+            delete topZi[selectedJoker];
+        }
+        log("  消耗癞子：" + selectedJoker + "，第一排剩余癞子 " + jokerTotal() + " 张");
+        selectedJoker = "";
+    }
+
     selectedCounts = {};
     refreshUI();
 
@@ -727,14 +924,21 @@ function executeElimination(combo) {
 
 function gameOver() {
     isManualMode = false;
+    isGameOver = true;
     submitBtn.disabled = true;
     newGameBtn.style.display = "inline-block";
     msgBarEl.textContent = "游戏结束！";
     comboHintEl.innerHTML = "";
-    log("===== 游戏结束，最终分数：" + totalDrawn + " 张 =====");
+    const handLeft = countHandTiles();
+    const handEmpty = handLeft === 0;
+    log(handEmpty
+        ? "===== 游戏结束（手牌已打空），最终分数：" + totalDrawn + " 张 ====="
+        : "===== 游戏结束，最终分数：" + totalDrawn + " 张 =====");
 
     gameLog.push("");
     gameLog.push("===== 游戏统计 =====");
+    gameLog.push("结束原因：" + (handEmpty ? "手牌已打空（数字牌为 0）" : "无可消除牌型"));
+    gameLog.push("玩法模式：" + (isJokerMode ? "癞子模式" : "经典模式"));
     gameLog.push("本轮游戏共摸牌 " + totalDrawn + " 张");
     gameLog.push("万：" + formatDrawnSuit(0));
     gameLog.push("条：" + formatDrawnSuit(1));
@@ -749,7 +953,17 @@ function gameOver() {
     const fileFmt = "" + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + "_" + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
     const filename = fileFmt + "_" + totalDrawn + ".txt";
 
-    const endMsg = "没有可消除的牌型了！\n您的最终分数（累计发牌）：" + totalDrawn + " 张\n\n" +
+    let endMsg;
+    if (handEmpty) {
+        endMsg = "手牌已打空！\n";
+        if (isJokerMode && jokerTotal() > 0) {
+            endMsg += "第一排还剩 " + jokerTotal() + " 张癞子，但癞子必须搭配数字牌，无法单独消除。\n";
+        }
+        endMsg += "\n";
+    } else {
+        endMsg = "没有可消除的牌型了！\n";
+    }
+    endMsg += "您的最终分数（累计发牌）：" + totalDrawn + " 张\n\n" +
         "万：" + formatDrawnSuit(0) + "\n" +
         "条：" + formatDrawnSuit(1) + "\n" +
         "筒：" + formatDrawnSuit(2) + "\n" +
