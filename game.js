@@ -13,6 +13,8 @@ let luckyNumber = 0;
 let drawCount = 0;
 let totalDrawn = 0;
 let roundCount = 0;
+// 清台次数（消除瞬间手牌与癞子同时清空，触发重新发牌）
+let clearTableCount = 0;
 
 // 癞子模式：字牌（东南西北中白发）当癞子使用。
 // 规则：不产生奖励牌；必须搭配数字牌一起打出；单次消除最多使用 1 张。
@@ -169,6 +171,7 @@ function resetGame() {
     topLucky = {};
     totalDrawn = 0;
     roundCount = 0;
+    clearTableCount = 0;
     selectedCounts = {};
     isManualMode = false;
     currentCombos = [];
@@ -208,16 +211,21 @@ function startGame() {
         log("初始摸牌：" + rewardDesc(card));
         placeCardToRow(card);
     }
+
+    // 开局保护：初始发的牌若一张数字牌都没有（全都摸到了字牌），补摸到有数字牌为止，
+    // 否则玩家一步未走就因「手牌为空」被判负。
+    let topUpGuard = 0;
+    while (countHandTiles() === 0 && topUpGuard++ < 100) {
+        const card = drawCard();
+        log("开局补发：" + rewardDesc(card));
+        placeCardToRow(card);
+    }
     refreshUI();
 
     settleTopRow().then(() => {
         if (isSettlingTopRow) return;
-        // 癞子模式下数字牌可能全被发到第一排（字牌），需走空手牌判定
-        if (isJokerMode) {
-            checkHandEmptyAndContinue();
-            return;
-        }
-        playRound();
+        // 统一走 playRound 的牌型枚举判定，不再按模式分支
+        checkHandEmptyAndContinue();
     });
 }
 
@@ -831,22 +839,64 @@ function countHandTiles() {
     return n;
 }
 
+// 清台判定：手牌、癞子、待结算的幸运牌全都为 0，即整张牌桌被彻底清空
+function isBoardCleared() {
+    if (countHandTiles() > 0) return false;
+    if (jokerTotal() > 0) return false;
+    for (const c of Object.values(topLucky)) {
+        if (c > 0) return false;
+    }
+    return true;
+}
+
+// 统一的结束判定入口：先确认牌桌是否彻底清空，其余一律交给 playRound 枚举牌型决定
 function checkHandEmptyAndContinue() {
-    if (countHandTiles() > 0) {
-        setTimeout(() => playRound(), 200);
+    // 兜底：手牌与癞子都被清空（正常由消除时的清台判定抢先处理，这里仅作保险）
+    if (countHandTiles() === 0 && jokerTotal() === 0) {
+        clearTableCount++;
+        showModal("清台", "牌桌已清空，按初始设置重新发牌！", [
+            { text: "重新发牌", action: () => { continueNextRound(); } }
+        ]);
         return;
     }
+    // 有牌但枚举不出任何牌型时，由 playRound 调用 gameOver，结束判定只有这一处出口
+    setTimeout(() => playRound(), 200);
+}
 
-    // 癞子模式：数字牌打空即结束（癞子不能单独打出，留着也无解）
-    if (isJokerMode) {
-        gameOver();
-        return;
+// 续开一轮：沿用当前模式与拆牌数重新发牌，累计分数与统计不清零
+function continueNextRound() {
+    isGameOver = false;
+    isManualMode = false;
+    isSettlingTopRow = false;
+    selectedCounts = {};
+    selectedJoker = "";
+    selectedTopZi.clear();
+    selectedTopLucky.clear();
+    currentCombos = [];
+    bestCombos = [];
+    submitBtn.disabled = true;
+    comboHintEl.innerHTML = "";
+
+    log("===== 清台重开（第 " + clearTableCount + " 次）：按初始设置重新发牌 =====");
+    for (let i = 0; i < drawCount; i++) {
+        const card = drawCard();
+        log("续发摸牌：" + rewardDesc(card));
+        placeCardToRow(card);
     }
 
-    // 经典模式：沿用原玩法，按初始设置重新发牌
-    showModal("提示", "手牌已空，按初始设置重新发牌！", [
-        { text: "确定", action: () => { startGame(); } }
-    ]);
+    // 同样需要开局保护，避免续发的一轮又是全字牌
+    let topUpGuard = 0;
+    while (countHandTiles() === 0 && topUpGuard++ < 100) {
+        const card = drawCard();
+        log("开局补发：" + rewardDesc(card));
+        placeCardToRow(card);
+    }
+    refreshUI();
+
+    settleTopRow().then(() => {
+        if (isSettlingTopRow) return;
+        checkHandEmptyAndContinue();
+    });
 }
 
 function matchesSelection(combo) {
@@ -904,6 +954,20 @@ function executeElimination(combo) {
     selectedCounts = {};
     refreshUI();
 
+    // 清台判定：消除完成、奖励牌尚未发放的这一刻，手牌与癞子已被同时吃光
+    if (isBoardCleared()) {
+        clearTableCount++;
+        isManualMode = false;
+        submitBtn.disabled = true;
+        comboHintEl.innerHTML = "";
+        log("★ 清台！手牌与癞子同时清空，本手奖励不再发放，按初始设置重新发牌");
+        refreshUI();
+        showModal("清台", "手牌与癞子同时清空，算作清台！\n本手奖励不再发放，直接按初始设置重新发牌（拆 " + drawCount + " 张，幸运数字 " + luckyNumber + " 不变）。", [
+            { text: "重新发牌", action: () => { continueNextRound(); } }
+        ]);
+        return;
+    }
+
     log("消除成功！" + combo.desc + "，获得奖励 " + combo.reward + " 张牌");
     log("发放奖励牌 " + combo.reward + " 张：");
     for (let i = 0; i < combo.reward; i++) {
@@ -939,6 +1003,7 @@ function gameOver() {
     gameLog.push("===== 游戏统计 =====");
     gameLog.push("结束原因：" + (handEmpty ? "手牌已打空（数字牌为 0）" : "无可消除牌型"));
     gameLog.push("玩法模式：" + (isJokerMode ? "癞子模式" : "经典模式"));
+    gameLog.push("清台次数：" + clearTableCount);
     gameLog.push("本轮游戏共摸牌 " + totalDrawn + " 张");
     gameLog.push("万：" + formatDrawnSuit(0));
     gameLog.push("条：" + formatDrawnSuit(1));
@@ -963,7 +1028,8 @@ function gameOver() {
     } else {
         endMsg = "没有可消除的牌型了！\n";
     }
-    endMsg += "您的最终分数（累计发牌）：" + totalDrawn + " 张\n\n" +
+    endMsg += "您的最终分数（累计发牌）：" + totalDrawn + " 张\n" +
+        (clearTableCount > 0 ? "清台重开：" + clearTableCount + " 次\n" : "") + "\n" +
         "万：" + formatDrawnSuit(0) + "\n" +
         "条：" + formatDrawnSuit(1) + "\n" +
         "筒：" + formatDrawnSuit(2) + "\n" +
